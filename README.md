@@ -1,7 +1,4 @@
-Sure thing—here is the entire document again **fully inside one fenced code block** so nothing will get rendered.
-You can copy/paste it directly into a `.md` file:
 
-````markdown
 # Shape Hierarchy Demo (C++)
 
 A small example that demonstrates **interfaces via abstract base classes**, **inheritance**, and **runtime polymorphism** in C++ using a `Shape` hierarchy.
