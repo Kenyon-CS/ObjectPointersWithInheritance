@@ -1,4 +1,3 @@
-
 # Shape Hierarchy Demo (C++)
 
 A small example that demonstrates **interfaces via abstract base classes**, **inheritance**, and **runtime polymorphism** in C++ using a `Shape` hierarchy.
@@ -9,8 +8,8 @@ A small example that demonstrates **interfaces via abstract base classes**, **in
 
 - **Abstract base class:** `Shape` declares pure virtual methods `area()` and `describe()`.
 - **Inheritance:** `Circle`, `Rectangle`, and `Triangle` derive from `Shape`.
-- **Polymorphism:** Base-class pointers (`Shape*`) refer to derived objects; calling virtual functions dispatches to the correct override.
-- **Resource cleanup:** Virtual destructor in `Shape` ensures proper destruction through base pointers.
+- **Polymorphism:** A `std::vector<std::unique_ptr<Shape>>` stores different shapes; calling virtual functions dispatches to the correct override.
+- **Resource cleanup:** Virtual destructor in `Shape` ensures proper destruction of derived objects when `unique_ptr` goes out of scope.
 
 ---
 
@@ -18,75 +17,114 @@ A small example that demonstrates **interfaces via abstract base classes**, **in
 
 ```cpp
 #include <iostream>
+#include <vector>
+#include <memory>
 #include <cmath>
+
+// Prefer a portable PI constant instead of relying on M_PI on all compilers.
+constexpr double PI = 3.141592653589793;
+
+// Base class Shape
+class Shape {
+public:
+    virtual ~Shape() = default;                  // Virtual destructor for polymorphic cleanup
+    virtual double area() const = 0;             // Pure virtual: compute area
+    virtual void describe() const = 0;           // Pure virtual: print a description
+};
+
+// Derived class Circle
+class Circle : public Shape {
+private:
+    double radius;
+
+public:
+    explicit Circle(double r) : radius(r) {}
+
+    double area() const override {
+        return PI * radius * radius;
+    }
+
+    void describe() const override {
+        std::cout << "Circle with radius: " << radius << std::endl;
+    }
+};
+
+// Derived class Rectangle
+class Rectangle : public Shape {
+private:
+    double width, height;
+
+public:
+    Rectangle(double w, double h) : width(w), height(h) {}
+
+    double area() const override {
+        return width * height;
+    }
+
+    void describe() const override {
+        std::cout << "Rectangle with width: " << width
+                  << " and height: " << height << std::endl;
+    }
+};
+
+// Derived class Triangle
+class Triangle : public Shape {
+private:
+    double base, height;
+
+public:
+    Triangle(double b, double h) : base(b), height(h) {}
+
+    double area() const override {
+        return 0.5 * base * height;
+    }
+
+    void describe() const override {
+        std::cout << "Triangle with base: " << base
+                  << " and height: " << height << std::endl;
+    }
+};
+
+int main() {
+    // Use RAII with std::unique_ptr inside std::vector (no manual delete needed)
+    std::vector<std::unique_ptr<Shape>> shapes;
+    shapes.emplace_back(std::make_unique<Circle>(5.0));         // Circle radius 5
+    shapes.emplace_back(std::make_unique<Rectangle>(4.0, 6.0)); // Rectangle 4x6
+    shapes.emplace_back(std::make_unique<Triangle>(3.0, 7.0));  // Triangle b=3, h=7
+
+    // Polymorphic calls via base-class interface
+    for (const auto& shape : shapes) {
+        shape->describe();
+        std::cout << "Area: " << shape->area() << std::endl;
+        std::cout << "--------------------------" << std::endl;
+    }
+
+    // No need to delete; unique_ptr cleans up automatically.
+    return 0;
+}
 ```
-
-- `<iostream>` for console I/O.
-- `<cmath>` for `M_PI` and math.
-
-> On MSVC, you may need to `#define _USE_MATH_DEFINES` **before** including `<cmath>` to use `M_PI`.
-
----
-
-## Class Overview
-
-### `class Shape`
-- **Role:** Abstract interface for all shapes.
-- **Key members:**
-  - `virtual ~Shape() {}` — virtual destructor for safe polymorphic deletion.
-  - `virtual double area() const = 0;` — pure virtual, must be implemented by derived classes.
-  - `virtual void describe() const = 0;` — pure virtual, prints human-readable details.
-
-### `class Circle : public Shape`
-- **State:** `double radius;`
-- **Ctor:** `Circle(double r)`
-- **Overrides:**
-  - `double area() const` → `πr²`
-  - `void describe() const` → prints radius
-
-### `class Rectangle : public Shape`
-- **State:** `double width, height;`
-- **Ctor:** `Rectangle(double w, double h)`
-- **Overrides:**
-  - `double area() const` → `width * height`
-  - `void describe() const` → prints width/height
-
-### `class Triangle : public Shape`
-- **State:** `double base, height;`
-- **Ctor:** `Triangle(double b, double h)`
-- **Overrides:**
-  - `double area() const` → `0.5 * base * height`
-  - `void describe() const` → prints base/height
 
 ---
 
 ## How `main()` Works
 
-1. **Create shapes via base pointers:**
-   ```cpp
-   Shape* shape1 = new Circle(5.0);
-   Shape* shape2 = new Rectangle(4.0, 6.0);
-   Shape* shape3 = new Triangle(3.0, 7.0);
-   ```
-2. **Store them together (heterogeneous collection):**
-   ```cpp
-   Shape* shapes[] = { shape1, shape2, shape3 };
-   ```
+1. **Create shapes with smart pointers:**  
+   `std::make_unique` constructs each derived object and wraps it in a `std::unique_ptr<Shape>`.
+
+2. **Store them in a `std::vector`:**  
+   All shapes live in a single container, allowing iteration and polymorphic calls.
+
 3. **Polymorphic calls in a loop:**
    ```cpp
-   for (int i = 0; i < 3; ++i) {
-       shapes[i]->describe();               // calls derived describe()
-       std::cout << "Area: " << shapes[i]->area() << '\n'; // calls derived area()
-       std::cout << "--------------------------" << std::endl;
+   for (const auto& shape : shapes) {
+       shape->describe();
+       std::cout << "Area: " << shape->area() << std::endl;
    }
    ```
-4. **Clean up:**
-   ```cpp
-   delete shape1;
-   delete shape2;
-   delete shape3;
-   ```
-   Thanks to `virtual ~Shape()`, the correct derived destructors (if any) would run.
+
+4. **Automatic cleanup:**  
+   When `shapes` goes out of scope, the `unique_ptr` objects automatically delete their owned shapes.  
+   No explicit `delete` statements are required.
 
 ---
 
@@ -112,34 +150,26 @@ Area: 10.5
 
 ### Linux / macOS (clang++ or g++)
 ```bash
-g++ -std=c++17 -O2 shapes.cpp -o shapes
-./shapes
+g++ -std=c++17 -O2 shapes_vector.cpp -o shapes_vector
+./shapes_vector
 ```
 
 ### Windows (MSVC)
-If you need `M_PI`:
-```cpp
-#define _USE_MATH_DEFINES
-#include <cmath>
-```
-Then build with Developer Command Prompt:
 ```bat
-cl /EHsc /std:c++17 shapes.cpp
-shapes.exe
+cl /EHsc /std:c++17 shapes_vector.cpp
+shapes_vector.exe
 ```
 
 ---
 
 ## Design Notes & Best Practices
 
-- **Why a virtual destructor?** Deleting through a base-class pointer without a virtual destructor is undefined behavior if the derived class owns resources.
-- **Const-correctness:** `area()` and `describe()` are `const` because they don’t modify object state.
-- **Avoiding raw `new`/`delete`:** Prefer RAII with smart pointers:
-  ```cpp
-  #include <memory>
-  std::unique_ptr<Shape> s1 = std::make_unique<Circle>(5.0);
-  ```
-  and store `std::unique_ptr<Shape>` in a `std::vector` to eliminate manual `delete`.
+- **Why `unique_ptr`?**  
+  Eliminates manual `delete` and guarantees destruction even if exceptions are thrown.
+- **Virtual destructor:**  
+  Required for safe polymorphic deletion—`unique_ptr<Shape>` will correctly call derived destructors.
+- **Const-correctness:**  
+  `area()` and `describe()` are `const` because they don’t modify the object.
 
 ---
 
@@ -154,7 +184,10 @@ To add a new shape:
    double area() const override { /* formula */ }
    void describe() const override { /* print details */ }
    ```
-4. Use it via `Shape*`/`std::unique_ptr<Shape>` to benefit from polymorphism.
+4. Add it to the vector with:
+   ```cpp
+   shapes.emplace_back(std::make_unique<NewShape>(/*args*/));
+   ```
 
 ---
 
@@ -184,17 +217,17 @@ To add a new shape:
 
 ## Common Pitfalls
 
-- **`M_PI` not defined:** Define `_USE_MATH_DEFINES` before `<cmath>` on MSVC, or use `constexpr double PI = 3.141592653589793;`.
-- **Forgetting `virtual` destructor:** Leads to undefined behavior when deleting via `Shape*`.
-- **Object slicing:** Storing derived objects **by value** in a container of base type slices them. Use pointers or references (ideally smart pointers).
+- **Object slicing:**  
+  Storing derived objects **by value** in a container of base type slices them. Using `std::unique_ptr<Shape>` avoids this.
+- **Missing virtual destructor:**  
+  Would cause undefined behavior when `unique_ptr` deletes a derived object.
+- **Copying `unique_ptr`:**  
+  `unique_ptr` cannot be copied—use `emplace_back` or `std::move` to transfer ownership.
 
 ---
 
 ## Variations to Try
 
 - Add `perimeter()` as another pure virtual method.
-- Use `std::vector<std::unique_ptr<Shape>>` instead of raw arrays/pointers.
-- Add input validation and formatted output with `std::fixed << std::setprecision(2)` for areas.
-````
-
-
+- Format areas with `std::fixed << std::setprecision(2)`.
+- Use `std::shared_ptr` if multiple owners of a shape are required.
